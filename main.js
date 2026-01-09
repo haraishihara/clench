@@ -662,7 +662,7 @@ faceMesh.onResults((results) => {
   const stageElement = document.querySelector('.stage');
   if (!stageElement) return;
 
-  // カメラ映像のアスペクト比を取得
+  // カメラ映像のアスペクト比を取得（縦型: 9:16 = 0.5625）
   const imageAspectRatio = results.image.width / results.image.height;
   
   // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
@@ -676,18 +676,21 @@ faceMesh.onResults((results) => {
     const availableWidth = Math.min(appWidth - 32, window.innerWidth - 32);
     const availableHeight = Math.min(appHeight - 32, window.innerHeight - 32);
     
-    // カメラ映像のアスペクト比と画面サイズを考慮して.stageのサイズを計算
-    // 画面の高さと幅の両方を考慮して、はみ出さないサイズを計算
+    // カメラ映像は縦型（9:16）を維持して表示
+    // 画面サイズに応じてスケールするが、縦型を優先
     let stageWidth, stageHeight;
     
-    if (availableHeight / availableWidth > imageAspectRatio) {
-      // 画面が縦長の場合、幅に合わせる
+    // 縦型のアスペクト比で計算
+    const targetAspectRatio = 9 / 16; // 縦型を強制
+    
+    if (availableHeight / availableWidth > targetAspectRatio) {
+      // 画面が縦長の場合、幅に合わせる（縦型を維持）
       stageWidth = availableWidth;
-      stageHeight = stageWidth / imageAspectRatio;
+      stageHeight = stageWidth / targetAspectRatio;
     } else {
-      // 画面が横長の場合、高さに合わせる
-      stageHeight = availableHeight;
-      stageWidth = stageHeight * imageAspectRatio;
+      // 画面が横長の場合でも、縦型を維持して高さに合わせる
+      stageHeight = Math.min(availableHeight, availableWidth / targetAspectRatio);
+      stageWidth = stageHeight * targetAspectRatio;
     }
     
     // .stageのサイズを設定（初回のみ）
@@ -716,20 +719,23 @@ faceMesh.onResults((results) => {
   
   canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  // カメラ映像をアスペクト比を保持しながら適切にスケールして描画
-  // 画面の高さと幅の両方を考慮して、はみ出さないサイズを計算
+  // カメラ映像を縦型（9:16）で表示（アスペクト比を保持）
+  // Canvasのサイズに合わせて、縦型を維持しながらスケール
   let drawWidth, drawHeight, drawX, drawY;
   
-  if (canvasHeight / canvasWidth > imageAspectRatio) {
-    // Canvasが縦長の場合、幅に合わせる
+  // 縦型のアスペクト比を維持
+  const targetAspectRatio = 9 / 16;
+  
+  if (canvasHeight / canvasWidth > targetAspectRatio) {
+    // Canvasが縦長の場合、幅に合わせる（縦型を維持）
     drawWidth = canvasWidth;
-    drawHeight = drawWidth / imageAspectRatio;
+    drawHeight = drawWidth / targetAspectRatio;
     drawX = 0;
     drawY = (canvasHeight - drawHeight) / 2;
   } else {
-    // Canvasが横長の場合、高さに合わせる
+    // Canvasが横長の場合でも、縦型を維持して高さに合わせる
     drawHeight = canvasHeight;
-    drawWidth = drawHeight * imageAspectRatio;
+    drawWidth = drawHeight * targetAspectRatio;
     drawX = (canvasWidth - drawWidth) / 2;
     drawY = 0;
   }
