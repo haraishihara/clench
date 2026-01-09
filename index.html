@@ -29,12 +29,43 @@
           口の最大開き
           <input type="range" min="1" max="5" step="0.05" value="2" id="mouthScale" />
         </label>
+        <label>
+          周期（秒）
+          <input type="range" min="0.3" max="3" step="0.1" value="1.0" id="periodScale" />
+        </label>
       </section>
 
       <footer>
         <small>※ ブラウザでカメラの使用を許可してください。</small>
       </footer>
     </main>
+
+    <!-- カメラ許可モーダル -->
+    <div class="camera-permission-modal" id="cameraPermissionModal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <h2 id="modalTitle">カメラの許可が必要です</h2>
+        <p>このアプリケーションを使用するには、カメラへのアクセス許可が必要です。</p>
+        <div class="modal-steps">
+          <div class="step">
+            <span class="step-number">1</span>
+            <p>ブラウザのアドレスバーにあるカメラアイコンをクリック</p>
+          </div>
+          <div class="step">
+            <span class="step-number">2</span>
+            <p>「常に許可」または「許可」を選択</p>
+          </div>
+          <div class="step">
+            <span class="step-number">3</span>
+            <p>ページを再読み込みしてください</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn modal-btn-primary" id="retryCameraBtn">再試行</button>
+          <button class="modal-btn modal-btn-secondary" id="closeModalBtn">閉じる</button>
+        </div>
+      </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>

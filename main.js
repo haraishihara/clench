@@ -2,6 +2,8 @@ const videoElement = document.querySelector(".input-video");
 const canvasElement = document.querySelector(".output-canvas");
 const statusElement = document.querySelector(".status");
 const mouthScaleInput = document.getElementById("mouthScale");
+const periodScaleInput = document.getElementById("periodScale");
+const stageElement = document.querySelector('.stage');
 
 const canvasCtx = canvasElement.getContext("2d");
 const offscreenCanvas = document.createElement("canvas");
@@ -12,8 +14,12 @@ const meshCtx = meshCanvas.getContext("2d");
 let stageSizeInitialized = false;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const PERIOD_MS = 3000;
+const PERIOD_MS = 1500; // 1秒周期
 const BASE_OPEN = 0.2;
+const OPEN_DURATION = 0.85; // 開く時間の割合（85%）
+
+// イージング関数（ease-out: 最初は速く、最後は遅く）
+const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
 const LANDMARKS = {
   mouthLeft: 61,
@@ -659,7 +665,6 @@ faceMesh.setOptions({
 faceMesh.onResults((results) => {
   if (!results.image) return;
 
-  const stageElement = document.querySelector('.stage');
   if (!stageElement) return;
 
   // カメラ映像のアスペクト比を取得
@@ -763,7 +768,23 @@ faceMesh.onResults((results) => {
   const mouthScaleMax = Number(mouthScaleInput.value);
 
   const elapsed = performance.now();
-  const normalized = (Math.sin((2 * Math.PI * elapsed) / PERIOD_MS) + 1) / 2;
+  // ユーザーが設定した周期を取得（秒単位からミリ秒に変換）
+  const currentPeriod = Number(periodScaleInput.value) * 1000;
+  // 周期内での進行度を計算（0から1まで）
+  const progress = (elapsed % currentPeriod) / currentPeriod;
+  
+  let normalized;
+  if (progress < OPEN_DURATION) {
+    // 開く：0から1まで線形に増加
+    normalized = progress / OPEN_DURATION;
+  } else {
+    // 閉じる：1から0までイージングを使って「ヒュンッ」と戻る
+    const closeProgress = (progress - OPEN_DURATION) / (1 - OPEN_DURATION);
+    // ease-outイージングを適用（最初は速く、最後は遅く）
+    const eased = easeOutCubic(closeProgress);
+    normalized = 1 - eased;
+  }
+  
   const forcedOpen = BASE_OPEN + normalized * (1 - BASE_OPEN);
   // 口の開け具合に関係なく、常に一定の開きを維持（アニメーション用）
   // 実際の口の開き具合は無視して、強制的に開いた状態を維持
@@ -785,15 +806,72 @@ const camera = new Camera(videoElement, {
   facingMode: 'user', // フロントカメラを使用
 });
 
-camera
-  .start()
-  .then(() => {
+// カメラ許可モーダルの制御
+const cameraPermissionModal = document.getElementById('cameraPermissionModal');
+const retryCameraBtn = document.getElementById('retryCameraBtn');
+const closeModalBtn = document.getElementById('closeModalBtn');
+
+const showCameraPermissionModal = () => {
+  cameraPermissionModal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+};
+
+const hideCameraPermissionModal = () => {
+  cameraPermissionModal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+};
+
+// カメラ許可状態をチェック
+const checkCameraPermission = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    // 許可が取れたらストリームを停止
+    stream.getTracks().forEach(track => track.stop());
+    return true;
+  } catch (error) {
+    console.error('カメラ許可エラー:', error);
+    return false;
+  }
+};
+
+// カメラ起動
+const startCamera = async () => {
+  try {
+    // まず許可状態をチェック
+    const hasPermission = await checkCameraPermission();
+    if (!hasPermission) {
+      showCameraPermissionModal();
+      return;
+    }
+
+    await camera.start();
+    hideCameraPermissionModal();
     updateStatus("カメラ起動中...口の自動開閉を確認してください。");
-  })
-  .catch((error) => {
-    console.error(error);
+  } catch (error) {
+    console.error('カメラ起動エラー:', error);
+    showCameraPermissionModal();
     updateStatus("カメラを起動できませんでした。権限を確認してください。");
-  });
+  }
+};
+
+// 初回カメラ起動
+startCamera();
+
+// 再試行ボタン
+retryCameraBtn.addEventListener('click', () => {
+  hideCameraPermissionModal();
+  startCamera();
+});
+
+// 閉じるボタン
+closeModalBtn.addEventListener('click', () => {
+  hideCameraPermissionModal();
+});
+
+// モーダルのオーバーレイをクリックしても閉じる
+cameraPermissionModal.querySelector('.modal-overlay').addEventListener('click', () => {
+  hideCameraPermissionModal();
+});
 
 // フルスクリーン機能
 const fullscreenBtn = document.querySelector('.fullscreen-btn');
