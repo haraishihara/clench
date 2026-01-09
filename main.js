@@ -718,23 +718,42 @@ faceMesh.onResults((results) => {
     const availableWidth = Math.min(appWidth - 32, window.innerWidth - 32);
     const availableHeight = Math.min(appHeight - 32, window.innerHeight - 32);
     
-    // カメラ映像は縦型を想定（スマホ対応）
-    // 縦型のアスペクト比（9:16 = 0.5625）を使用
-    const targetAspectRatio = isPortrait ? portraitAspectRatio : (9 / 16);
+    // カメラ映像の実際のアスペクト比を使用
+    // 縦型の場合: height/width (1より大きい値)
+    // 横型の場合: width/height (1より小さい値)
+    const cameraAspectRatioForStage = isPortrait
+      ? (results.image.height / results.image.width)  // 縦型: 高さ/幅
+      : (results.image.width / results.image.height); // 横型: 幅/高さ
     
     let stageWidth, stageHeight;
     
-    // 画面のアスペクト比とカメラ映像のアスペクト比を比較
+    // 画面のアスペクト比（高さ/幅）
     const screenAspectRatio = availableHeight / availableWidth;
     
-    if (screenAspectRatio > targetAspectRatio) {
-      // 画面が縦長の場合、幅に合わせる（縦型を維持）
-      stageWidth = availableWidth;
-      stageHeight = stageWidth / targetAspectRatio;
+    if (isPortrait) {
+      // 縦型カメラ映像の場合
+      if (screenAspectRatio > cameraAspectRatioForStage) {
+        // 画面がより縦長の場合、幅に合わせる（アスペクト比を維持）
+        stageWidth = availableWidth;
+        stageHeight = stageWidth * cameraAspectRatioForStage;
+      } else {
+        // 画面がより横長の場合、高さに合わせる（アスペクト比を維持）
+        stageHeight = Math.min(availableHeight, availableWidth * cameraAspectRatioForStage);
+        stageWidth = stageHeight / cameraAspectRatioForStage;
+      }
     } else {
-      // 画面が横長の場合でも、縦型を維持して高さに合わせる
-      stageHeight = Math.min(availableHeight, availableWidth / targetAspectRatio);
-      stageWidth = stageHeight * targetAspectRatio;
+      // 横型カメラ映像の場合
+      const screenAspectRatioWidth = availableWidth / availableHeight; // 幅/高さ
+      
+      if (screenAspectRatioWidth > cameraAspectRatioForStage) {
+        // 画面がより横長の場合、高さに合わせる（アスペクト比を維持）
+        stageHeight = availableHeight;
+        stageWidth = stageHeight * cameraAspectRatioForStage;
+      } else {
+        // 画面がより縦長の場合、幅に合わせる（アスペクト比を維持）
+        stageWidth = availableWidth;
+        stageHeight = stageWidth / cameraAspectRatioForStage;
+      }
     }
     
     // .stageのサイズを設定（初回のみ）
@@ -767,23 +786,49 @@ faceMesh.onResults((results) => {
   // Canvasのサイズに合わせて、カメラ映像のアスペクト比を維持しながらスケール
   let drawWidth, drawHeight, drawX, drawY;
   
-  // 縦型のアスペクト比を使用（カメラ映像の実際のアスペクト比を使用）
-  const targetAspectRatioForDraw = isPortrait ? imageAspectRatio : (results.image.height / results.image.width);
+  // カメラ映像の実際のアスペクト比を使用
+  // 縦型の場合: height/width (1より大きい値)
+  // 横型の場合: width/height (1より小さい値)
+  const cameraAspectRatio = isPortrait 
+    ? (results.image.height / results.image.width)  // 縦型: 高さ/幅
+    : (results.image.width / results.image.height); // 横型: 幅/高さ
   
+  // Canvasのアスペクト比（高さ/幅）
   const canvasAspectRatio = canvasHeight / canvasWidth;
   
-  if (canvasAspectRatio > targetAspectRatioForDraw) {
-    // Canvasが縦長の場合、幅に合わせる（アスペクト比を維持）
-    drawWidth = canvasWidth;
-    drawHeight = drawWidth / targetAspectRatioForDraw;
-    drawX = 0;
-    drawY = (canvasHeight - drawHeight) / 2;
+  if (isPortrait) {
+    // 縦型カメラ映像の場合
+    if (canvasAspectRatio > cameraAspectRatio) {
+      // Canvasがより縦長の場合、幅に合わせる（アスペクト比を維持）
+      drawWidth = canvasWidth;
+      drawHeight = drawWidth * cameraAspectRatio;
+      drawX = 0;
+      drawY = (canvasHeight - drawHeight) / 2;
+    } else {
+      // Canvasがより横長の場合、高さに合わせる（アスペクト比を維持）
+      drawHeight = canvasHeight;
+      drawWidth = drawHeight / cameraAspectRatio;
+      drawX = (canvasWidth - drawWidth) / 2;
+      drawY = 0;
+    }
   } else {
-    // Canvasが横長の場合、高さに合わせる（アスペクト比を維持）
-    drawHeight = canvasHeight;
-    drawWidth = drawHeight * targetAspectRatioForDraw;
-    drawX = (canvasWidth - drawWidth) / 2;
-    drawY = 0;
+    // 横型カメラ映像の場合
+    const cameraAspectRatioWidth = cameraAspectRatio; // width/height
+    const canvasAspectRatioWidth = canvasWidth / canvasHeight; // width/height
+    
+    if (canvasAspectRatioWidth > cameraAspectRatioWidth) {
+      // Canvasがより横長の場合、高さに合わせる（アスペクト比を維持）
+      drawHeight = canvasHeight;
+      drawWidth = drawHeight * cameraAspectRatioWidth;
+      drawX = (canvasWidth - drawWidth) / 2;
+      drawY = 0;
+    } else {
+      // Canvasがより縦長の場合、幅に合わせる（アスペクト比を維持）
+      drawWidth = canvasWidth;
+      drawHeight = drawWidth / cameraAspectRatioWidth;
+      drawX = 0;
+      drawY = (canvasHeight - drawHeight) / 2;
+    }
   }
   
   offscreenCtx.drawImage(results.image, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
