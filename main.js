@@ -701,55 +701,19 @@ faceMesh.onResults((results) => {
   const isFullscreen = !!getFullscreenElement() || 
                        stageElement.classList.contains('fullscreen-mode');
   
-  // カメラ設定で指定した解像度（720x1280 = 縦長）
-  const CAMERA_WIDTH = 720;
-  const CAMERA_HEIGHT = 1280;
-  const CAMERA_ASPECT_RATIO = CAMERA_HEIGHT / CAMERA_WIDTH; // 縦長: 高さ/幅 = 1280/720 ≈ 1.778
+  // 実際のカメラ映像の解像度を使用（各カメラの解像度に合わせて維持）
+  // 固定のアスペクト比は使用せず、常に実際の解像度を使用してアスペクト比を維持
+  const actualImageWidth = results.image.width;
+  const actualImageHeight = results.image.height;
   
-  // モバイルデバイスでは、実際のカメラ映像のサイズに関係なく、
-  // カメラ設定で指定した縦長のアスペクト比を使用する
-  // デスクトップのスマホモードでは実際の映像サイズを使用
-  const imageAspectRatio = results.image.width / results.image.height;
+  // 実際の映像が縦長か横長かを判定
+  const isPortrait = actualImageHeight > actualImageWidth;
   
-  // モバイルデバイスでは、カメラ設定で指定した縦長として扱う
-  // デスクトップのスマホモードでは実際の映像サイズで判定
-  // フルスクリーン時はモバイルでは常に縦長として扱う（横長で表示されることを防ぐ）
-  let isPortrait;
-  let cameraAspectRatioForDisplay;
-  
-  if (isMobile && !isIOS) {
-    // Androidなどのモバイルデバイスでは、カメラ設定で指定した縦長として扱う
-    // フルスクリーン時も常に縦長として扱う
-    isPortrait = true;
-    cameraAspectRatioForDisplay = CAMERA_ASPECT_RATIO;
-  } else if (isIOS) {
-    // iOSのSafariでは、フルスクリーン時は常に縦長として扱う
-    // 通常時も実際の映像サイズが横長でも、カメラ設定を優先
-    if (isFullscreen || results.image.width > results.image.height) {
-      // フルスクリーン時、または実際の映像が横長の場合は縦長として扱う
-      isPortrait = true;
-      cameraAspectRatioForDisplay = CAMERA_ASPECT_RATIO;
-    } else {
-      // 通常時で実際の映像が縦長の場合は、実際のサイズを使用
-      isPortrait = true;
-      cameraAspectRatioForDisplay = results.image.height / results.image.width;
-    }
-  } else {
-    // デスクトップのスマホモードでは実際の映像サイズで判定
-    // ただし、フルスクリーン時でモバイル判定されている場合は縦長として扱う
-    if (isFullscreen && isMobile) {
-      isPortrait = true;
-      cameraAspectRatioForDisplay = CAMERA_ASPECT_RATIO;
-    } else {
-      isPortrait = results.image.height > results.image.width;
-      cameraAspectRatioForDisplay = isPortrait 
-        ? (results.image.height / results.image.width)
-        : (results.image.width / results.image.height);
-    }
-  }
-  
-  // 縦型の場合のアスペクト比を計算
-  const portraitAspectRatio = isPortrait ? (results.image.height / results.image.width) : (results.image.width / results.image.height);
+  // 実際のカメラ映像のアスペクト比を計算（高さ/幅）
+  // 縦長の場合：高さ/幅、横長の場合：幅/高さ（後で計算時に使用）
+  const cameraAspectRatioForDisplay = isPortrait 
+    ? (actualImageHeight / actualImageWidth)  // 縦長：高さ/幅
+    : (actualImageWidth / actualImageHeight);  // 横長：幅/高さ（後で計算時に使用）
   
   // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
   // フルスクリーン時は常に再計算
@@ -771,9 +735,7 @@ faceMesh.onResults((results) => {
       availableHeight = Math.min(appHeight - 32, window.innerHeight - 32);
     }
     
-    // カメラ映像のアスペクト比を使用
-    // モバイルデバイスでは、カメラ設定で指定したアスペクト比を使用
-    // デスクトップのスマホモードでは実際の映像サイズを使用
+    // 実際のカメラ映像のアスペクト比を使用（各カメラの解像度に合わせて維持）
     const cameraAspectRatioForStage = cameraAspectRatioForDisplay;
     
     let stageWidth, stageHeight;
@@ -849,9 +811,7 @@ faceMesh.onResults((results) => {
   // 通常時はアスペクト比を維持しながら中央に配置
   let drawWidth, drawHeight, drawX, drawY;
   
-  // カメラ映像のアスペクト比を使用
-  // モバイルデバイスでは、カメラ設定で指定したアスペクト比を使用
-  // デスクトップのスマホモードでは実際の映像サイズを使用
+  // 実際のカメラ映像のアスペクト比を使用（各カメラの解像度に合わせて維持）
   const cameraAspectRatio = cameraAspectRatioForDisplay;
   
   // Canvasのアスペクト比（高さ/幅）
