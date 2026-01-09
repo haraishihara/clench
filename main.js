@@ -713,11 +713,13 @@ faceMesh.onResults((results) => {
   
   // モバイルデバイスでは、カメラ設定で指定した縦長として扱う
   // デスクトップのスマホモードでは実際の映像サイズで判定
+  // フルスクリーン時はモバイルでは常に縦長として扱う（横長で表示されることを防ぐ）
   let isPortrait;
   let cameraAspectRatioForDisplay;
   
   if (isMobile && !isIOS) {
     // Androidなどのモバイルデバイスでは、カメラ設定で指定した縦長として扱う
+    // フルスクリーン時も常に縦長として扱う
     isPortrait = true;
     cameraAspectRatioForDisplay = CAMERA_ASPECT_RATIO;
   } else if (isIOS) {
@@ -734,10 +736,16 @@ faceMesh.onResults((results) => {
     }
   } else {
     // デスクトップのスマホモードでは実際の映像サイズで判定
-    isPortrait = results.image.height > results.image.width;
-    cameraAspectRatioForDisplay = isPortrait 
-      ? (results.image.height / results.image.width)
-      : (results.image.width / results.image.height);
+    // ただし、フルスクリーン時でモバイル判定されている場合は縦長として扱う
+    if (isFullscreen && isMobile) {
+      isPortrait = true;
+      cameraAspectRatioForDisplay = CAMERA_ASPECT_RATIO;
+    } else {
+      isPortrait = results.image.height > results.image.width;
+      cameraAspectRatioForDisplay = isPortrait 
+        ? (results.image.height / results.image.width)
+        : (results.image.width / results.image.height);
+    }
   }
   
   // 縦型の場合のアスペクト比を計算
