@@ -882,9 +882,14 @@ const camera = new Camera(videoElement, {
   facingMode: 'user', // フロントカメラを使用
 });
 
-// カメラ許可モーダルの制御
+// カメラ許可モーダルの制御（モーダルは表示しないが、エラー回避のため関数を定義）
 const retryCameraBtn = document.getElementById('retryCameraBtn');
 const closeModalBtn = document.getElementById('closeModalBtn');
+const cameraPermissionModal = document.getElementById('cameraPermissionModal');
+
+const hideCameraPermissionModal = () => {
+  // モーダルは表示しないため、何もしない
+};
 
 // カメラ許可状態をチェック
 const checkCameraPermission = async () => {
@@ -913,39 +918,124 @@ const startCamera = async () => {
 // 初回カメラ起動
 startCamera();
 
-// 再試行ボタン
-retryCameraBtn.addEventListener('click', () => {
-  hideCameraPermissionModal();
-  startCamera();
-});
+// 再試行ボタン（存在する場合のみ）
+if (retryCameraBtn) {
+  retryCameraBtn.addEventListener('click', () => {
+    hideCameraPermissionModal();
+    startCamera();
+  });
+}
 
-// 閉じるボタン
-closeModalBtn.addEventListener('click', () => {
-  hideCameraPermissionModal();
-});
+// 閉じるボタン（存在する場合のみ）
+if (closeModalBtn) {
+  closeModalBtn.addEventListener('click', () => {
+    hideCameraPermissionModal();
+  });
+}
 
-// モーダルのオーバーレイをクリックしても閉じる
-cameraPermissionModal.querySelector('.modal-overlay').addEventListener('click', () => {
-  hideCameraPermissionModal();
-});
+// モーダルのオーバーレイをクリックしても閉じる（存在する場合のみ）
+if (cameraPermissionModal) {
+  const overlay = cameraPermissionModal.querySelector('.modal-overlay');
+  if (overlay) {
+    overlay.addEventListener('click', () => {
+      hideCameraPermissionModal();
+    });
+  }
+}
 
 // フルスクリーン機能
 const fullscreenBtn = document.querySelector('.fullscreen-btn');
 
+// フルスクリーンAPIのベンダープレフィックス対応
+const getFullscreenElement = () => {
+  return document.fullscreenElement ||
+         document.webkitFullscreenElement ||
+         document.mozFullScreenElement ||
+         document.msFullscreenElement ||
+         null;
+};
+
+const requestFullscreen = (element) => {
+  if (element.requestFullscreen) {
+    return element.requestFullscreen();
+  } else if (element.webkitRequestFullscreen) {
+    return element.webkitRequestFullscreen();
+  } else if (element.mozRequestFullScreen) {
+    return element.mozRequestFullScreen();
+  } else if (element.msRequestFullscreen) {
+    return element.msRequestFullscreen();
+  } else {
+    // モバイルデバイスでの代替実装
+    // 画面の向きをロックしてフルスクリーン風にする
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('portrait').catch(() => {
+        // ロックに失敗しても続行
+      });
+    }
+    // ビューポートを調整
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport) {
+      viewport.setAttribute('content', 'width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    }
+    // ステージを全画面表示
+    stageElement.style.position = 'fixed';
+    stageElement.style.top = '0';
+    stageElement.style.left = '0';
+    stageElement.style.width = '100vw';
+    stageElement.style.height = '100vh';
+    stageElement.style.zIndex = '9999';
+    stageElement.style.margin = '0';
+    stageElement.style.borderRadius = '0';
+    return Promise.resolve();
+  }
+};
+
+const exitFullscreen = () => {
+  if (document.exitFullscreen) {
+    return document.exitFullscreen();
+  } else if (document.webkitExitFullscreen) {
+    return document.webkitExitFullscreen();
+  } else if (document.mozCancelFullScreen) {
+    return document.mozCancelFullScreen();
+  } else if (document.msExitFullscreen) {
+    return document.msExitFullscreen();
+  } else {
+    // モバイルデバイスでの代替実装を解除
+    if (screen.orientation && screen.orientation.unlock) {
+      screen.orientation.unlock();
+    }
+    // ステージを元に戻す
+    stageElement.style.position = '';
+    stageElement.style.top = '';
+    stageElement.style.left = '';
+    stageElement.style.width = '';
+    stageElement.style.height = '';
+    stageElement.style.zIndex = '';
+    stageElement.style.margin = '';
+    stageElement.style.borderRadius = '';
+    return Promise.resolve();
+  }
+};
+
 const toggleFullscreen = async () => {
-  if (!document.fullscreenElement) {
+  const isFullscreen = !!getFullscreenElement() || 
+                       (stageElement.style.position === 'fixed');
+  
+  if (!isFullscreen) {
     // フルスクリーンに入る
     try {
-      await stageElement.requestFullscreen();
+      await requestFullscreen(stageElement);
     } catch (error) {
       console.error('フルスクリーンに失敗しました:', error);
+      updateStatus("フルスクリーンに失敗しました。");
     }
   } else {
     // フルスクリーンから出る
     try {
-      await document.exitFullscreen();
+      await exitFullscreen();
     } catch (error) {
       console.error('フルスクリーン解除に失敗しました:', error);
+      updateStatus("フルスクリーン解除に失敗しました。");
     }
   }
 };
@@ -953,9 +1043,12 @@ const toggleFullscreen = async () => {
 // フルスクリーンボタンのクリックイベント
 fullscreenBtn.addEventListener('click', toggleFullscreen);
 
-// フルスクリーン状態の変更を監視
-document.addEventListener('fullscreenchange', () => {
-  if (document.fullscreenElement) {
+// フルスクリーン状態の変更を監視（ベンダープレフィックス対応）
+const updateFullscreenButton = () => {
+  const isFullscreen = !!getFullscreenElement() || 
+                       (stageElement.style.position === 'fixed');
+  
+  if (isFullscreen) {
     fullscreenBtn.innerHTML = `
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
@@ -975,7 +1068,13 @@ document.addEventListener('fullscreenchange', () => {
   
   // フルスクリーン状態が変わったら、サイズを再計算
   stageSizeInitialized = false;
-});
+};
+
+// 各ブラウザのフルスクリーン変更イベントを監視
+document.addEventListener('fullscreenchange', updateFullscreenButton);
+document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+document.addEventListener('MSFullscreenChange', updateFullscreenButton);
 
 // キーボードショートカット（F11またはEsc）
 document.addEventListener('keydown', (e) => {
