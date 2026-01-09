@@ -749,20 +749,9 @@ faceMesh.onResults((results) => {
     let availableWidth, availableHeight;
     
     if (isFullscreen) {
-      // フルスクリーン時は画面全体を使用
-      // iOSのSafariでは、画面の向きを考慮
+      // フルスクリーン時は画面全体を使用（モバイルの画面いっぱいに表示）
       availableWidth = window.innerWidth;
       availableHeight = window.innerHeight;
-      
-      // iOSのSafariでフルスクリーン時は、縦長として扱う
-      // 画面が横長の場合でも、縦長のカメラ映像を表示するため、画面の高さを優先
-      if (isIOS && availableWidth > availableHeight) {
-        // 画面が横長の場合、縦長のカメラ映像を表示するため、幅と高さを入れ替える
-        // ただし、実際の画面サイズは維持
-        const temp = availableWidth;
-        availableWidth = availableHeight;
-        availableHeight = temp;
-      }
     } else {
       // 通常時は親要素のサイズを取得
       const appElement = document.querySelector('.app');
@@ -781,32 +770,39 @@ faceMesh.onResults((results) => {
     
     let stageWidth, stageHeight;
     
-    // 画面のアスペクト比（高さ/幅）
-    const screenAspectRatio = availableHeight / availableWidth;
-    
-    if (isPortrait) {
-      // 縦型カメラ映像の場合
-      if (screenAspectRatio > cameraAspectRatioForStage) {
-        // 画面がより縦長の場合、幅に合わせる（アスペクト比を維持）
-        stageWidth = availableWidth;
-        stageHeight = stageWidth * cameraAspectRatioForStage;
-      } else {
-        // 画面がより横長の場合、高さに合わせる（アスペクト比を維持）
-        stageHeight = availableHeight;
-        stageWidth = stageHeight / cameraAspectRatioForStage;
-      }
+    if (isFullscreen) {
+      // フルスクリーン時は画面全体を使用（モバイルの画面いっぱいに表示）
+      stageWidth = availableWidth;
+      stageHeight = availableHeight;
     } else {
-      // 横型カメラ映像の場合
-      const screenAspectRatioWidth = availableWidth / availableHeight; // 幅/高さ
+      // 通常時はアスペクト比を維持しながらサイズを計算
+      // 画面のアスペクト比（高さ/幅）
+      const screenAspectRatio = availableHeight / availableWidth;
       
-      if (screenAspectRatioWidth > cameraAspectRatioForStage) {
-        // 画面がより横長の場合、高さに合わせる（アスペクト比を維持）
-        stageHeight = availableHeight;
-        stageWidth = stageHeight * cameraAspectRatioForStage;
+      if (isPortrait) {
+        // 縦型カメラ映像の場合
+        if (screenAspectRatio > cameraAspectRatioForStage) {
+          // 画面がより縦長の場合、幅に合わせる（アスペクト比を維持）
+          stageWidth = availableWidth;
+          stageHeight = stageWidth * cameraAspectRatioForStage;
+        } else {
+          // 画面がより横長の場合、高さに合わせる（アスペクト比を維持）
+          stageHeight = availableHeight;
+          stageWidth = stageHeight / cameraAspectRatioForStage;
+        }
       } else {
-        // 画面がより縦長の場合、幅に合わせる（アスペクト比を維持）
-        stageWidth = availableWidth;
-        stageHeight = stageWidth / cameraAspectRatioForStage;
+        // 横型カメラ映像の場合
+        const screenAspectRatioWidth = availableWidth / availableHeight; // 幅/高さ
+        
+        if (screenAspectRatioWidth > cameraAspectRatioForStage) {
+          // 画面がより横長の場合、高さに合わせる（アスペクト比を維持）
+          stageHeight = availableHeight;
+          stageWidth = stageHeight * cameraAspectRatioForStage;
+        } else {
+          // 画面がより縦長の場合、幅に合わせる（アスペクト比を維持）
+          stageWidth = availableWidth;
+          stageHeight = stageWidth / cameraAspectRatioForStage;
+        }
       }
     }
     
