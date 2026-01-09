@@ -41,8 +41,10 @@ header p {
   border: 1px solid #1f2435;
   background: #0f1422;
   aspect-ratio: 9 / 16; /* 縦長（スマホ対応） */
+  width: fit-content;
   max-width: 100%;
   max-height: 80vh;
+  margin: 0 auto;
 }
 
 .input-video {

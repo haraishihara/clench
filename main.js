@@ -9,6 +9,8 @@ const offscreenCtx = offscreenCanvas.getContext("2d");
 const meshCanvas = document.createElement("canvas");
 const meshCtx = meshCanvas.getContext("2d");
 
+let stageSizeInitialized = false;
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const PERIOD_MS = 3000;
 const BASE_OPEN = 0.2;
@@ -550,8 +552,27 @@ faceMesh.setOptions({
 faceMesh.onResults((results) => {
   if (!results.image) return;
 
-  // 画面のサイズを取得（CSSのaspect-ratioに合わせる）
   const stageElement = document.querySelector('.stage');
+  if (!stageElement) return;
+
+  // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
+  if (!stageSizeInitialized) {
+    // 親要素（.app）の幅を基準にする
+    const appElement = document.querySelector('.app');
+    const appWidth = appElement ? appElement.clientWidth : window.innerWidth;
+    const targetAspectRatio = 9 / 16;
+    
+    // .stageのサイズを計算（親要素の幅に合わせる）
+    const stageWidth = Math.min(appWidth - 32, window.innerWidth - 32); // パディングを考慮
+    const stageHeight = stageWidth / targetAspectRatio;
+    
+    // .stageのサイズを設定（初回のみ）
+    stageElement.style.width = `${stageWidth}px`;
+    stageElement.style.height = `${stageHeight}px`;
+    stageSizeInitialized = true;
+  }
+
+  // .stageのサイズを取得（固定されたサイズ）
   const displayWidth = stageElement.clientWidth;
   const displayHeight = stageElement.clientHeight;
   
