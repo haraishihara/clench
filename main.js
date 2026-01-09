@@ -2,23 +2,15 @@ const videoElement = document.querySelector(".input-video");
 const canvasElement = document.querySelector(".output-canvas");
 const statusElement = document.querySelector(".status");
 const mouthScaleInput = document.getElementById("mouthScale");
-const eyeSensitivityInput = document.getElementById("eyeSensitivity");
 
 const canvasCtx = canvasElement.getContext("2d");
 const offscreenCanvas = document.createElement("canvas");
 const offscreenCtx = offscreenCanvas.getContext("2d");
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const PERIOD_MS = 3000;
 
 const LANDMARKS = {
-  leftEyeUpper: 159,
-  leftEyeLower: 145,
-  leftEyeLeft: 33,
-  leftEyeRight: 133,
-  rightEyeUpper: 386,
-  rightEyeLower: 374,
-  rightEyeLeft: 362,
-  rightEyeRight: 263,
   mouthLeft: 61,
   mouthRight: 291,
   mouthUpper: 13,
@@ -27,35 +19,6 @@ const LANDMARKS = {
 
 const updateStatus = (message) => {
   statusElement.textContent = message;
-};
-
-const distance = (a, b) => {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return Math.hypot(dx, dy);
-};
-
-const computeEyeOpenness = (landmarks) => {
-  const leftOpen = distance(
-    landmarks[LANDMARKS.leftEyeUpper],
-    landmarks[LANDMARKS.leftEyeLower]
-  );
-  const leftWidth = distance(
-    landmarks[LANDMARKS.leftEyeLeft],
-    landmarks[LANDMARKS.leftEyeRight]
-  );
-  const rightOpen = distance(
-    landmarks[LANDMARKS.rightEyeUpper],
-    landmarks[LANDMARKS.rightEyeLower]
-  );
-  const rightWidth = distance(
-    landmarks[LANDMARKS.rightEyeLeft],
-    landmarks[LANDMARKS.rightEyeRight]
-  );
-
-  const leftRatio = leftOpen / leftWidth;
-  const rightRatio = rightOpen / rightWidth;
-  return (leftRatio + rightRatio) / 2;
 };
 
 const drawMouthWarp = (landmarks, scale) => {
@@ -126,16 +89,15 @@ faceMesh.onResults((results) => {
   }
 
   const landmarks = results.multiFaceLandmarks[0];
-  const eyeOpenness = computeEyeOpenness(landmarks);
-  const sensitivity = Number(eyeSensitivityInput.value);
   const mouthScaleMax = Number(mouthScaleInput.value);
 
-  const normalized = clamp((eyeOpenness - sensitivity) * 20, 0, 1);
+  const elapsed = performance.now();
+  const normalized = (Math.sin((2 * Math.PI * elapsed) / PERIOD_MS) + 1) / 2;
   const mouthScale = 1 + normalized * (mouthScaleMax - 1);
 
   drawMouthWarp(landmarks, mouthScale);
 
-  updateStatus(`目の開き: ${eyeOpenness.toFixed(3)} / 口の拡大: ${mouthScale.toFixed(2)}x`);
+  updateStatus(`自動開閉中: 口の拡大 ${mouthScale.toFixed(2)}x`);
 });
 
 const camera = new Camera(videoElement, {
@@ -149,7 +111,7 @@ const camera = new Camera(videoElement, {
 camera
   .start()
   .then(() => {
-    updateStatus("カメラ起動中...目を開閉してみてください。");
+    updateStatus("カメラ起動中...口の自動開閉を確認してください。");
   })
   .catch((error) => {
     console.error(error);
