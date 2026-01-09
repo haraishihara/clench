@@ -9,6 +9,7 @@ const offscreenCtx = offscreenCanvas.getContext("2d");
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const PERIOD_MS = 3000;
+const BASE_OPEN = 0.2;
 
 const LANDMARKS = {
   mouthLeft: 61,
@@ -17,8 +18,24 @@ const LANDMARKS = {
   mouthLower: 14,
 };
 
+const LIP_OUTLINE = [
+  61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308,
+];
+
 const updateStatus = (message) => {
   statusElement.textContent = message;
+};
+
+const buildLipPath = (landmarks) => {
+  const path = new Path2D();
+  const first = landmarks[LIP_OUTLINE[0]];
+  path.moveTo(first.x * canvasElement.width, first.y * canvasElement.height);
+  LIP_OUTLINE.slice(1).forEach((index) => {
+    const point = landmarks[index];
+    path.lineTo(point.x * canvasElement.width, point.y * canvasElement.height);
+  });
+  path.closePath();
+  return path;
 };
 
 const drawMouthWarp = (landmarks, scale) => {
@@ -46,6 +63,9 @@ const drawMouthWarp = (landmarks, scale) => {
   const targetHeight = sh * scale;
   const dy = centerY - targetHeight / 2;
 
+  const lipPath = buildLipPath(landmarks);
+  canvasCtx.save();
+  canvasCtx.clip(lipPath);
   canvasCtx.drawImage(
     offscreenCanvas,
     sx,
@@ -57,6 +77,7 @@ const drawMouthWarp = (landmarks, scale) => {
     sw,
     targetHeight
   );
+  canvasCtx.restore();
 };
 
 const faceMesh = new FaceMesh({
@@ -93,7 +114,8 @@ faceMesh.onResults((results) => {
 
   const elapsed = performance.now();
   const normalized = (Math.sin((2 * Math.PI * elapsed) / PERIOD_MS) + 1) / 2;
-  const mouthScale = 1 + normalized * (mouthScaleMax - 1);
+  const forcedOpen = BASE_OPEN + normalized * (1 - BASE_OPEN);
+  const mouthScale = 1 + forcedOpen * (mouthScaleMax - 1);
 
   drawMouthWarp(landmarks, mouthScale);
 
