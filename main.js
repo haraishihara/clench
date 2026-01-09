@@ -430,6 +430,97 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
   // まず元の画像を描画
   canvasCtx.drawImage(offscreenCanvas, drawX, drawY, drawWidth, drawHeight);
 
+  // 口の中の領域（下唇が移動した後の空白部分）の色を取得
+  // 元の画像（offscreenCanvas）から、下唇が移動した後の位置に対応する色を取得
+  const mouthOpeningPath = buildMouthOpeningPath(adjustedLandmarks, offsetVector);
+  
+  // 口の中の領域の境界ボックスを計算（Canvas座標系）
+  const mouthPathBounds = {
+    minX: Infinity,
+    maxX: -Infinity,
+    minY: Infinity,
+    maxY: -Infinity
+  };
+  
+  // 口の中のパスの主要なポイントから境界を計算
+  const upperInnerPoints = INNER_MOUTH.slice(0, 6);
+  const lowerInnerPoints = INNER_MOUTH.slice(6);
+  
+  // 上唇の内側ポイント
+  upperInnerPoints.forEach(index => {
+    const point = adjustedLandmarks[index];
+    mouthPathBounds.minX = Math.min(mouthPathBounds.minX, point.x * canvasElement.width);
+    mouthPathBounds.maxX = Math.max(mouthPathBounds.maxX, point.x * canvasElement.width);
+    mouthPathBounds.minY = Math.min(mouthPathBounds.minY, point.y * canvasElement.height);
+    mouthPathBounds.maxY = Math.max(mouthPathBounds.maxY, point.y * canvasElement.height);
+  });
+  
+  // 下唇の内側ポイント（移動後）
+  lowerInnerPoints.forEach(index => {
+    const point = adjustedLandmarks[index];
+    const movedX = point.x * canvasElement.width + offsetVector.x;
+    const movedY = point.y * canvasElement.height + offsetVector.y;
+    mouthPathBounds.minX = Math.min(mouthPathBounds.minX, movedX);
+    mouthPathBounds.maxX = Math.max(mouthPathBounds.maxX, movedX);
+    mouthPathBounds.minY = Math.min(mouthPathBounds.minY, movedY);
+    mouthPathBounds.maxY = Math.max(mouthPathBounds.maxY, movedY);
+  });
+  
+  // 元の画像座標系に変換して色を取得
+  const imageScaleX = drawWidth / imageWidth;
+  const imageScaleY = drawHeight / imageHeight;
+  
+  // 口の中の中心位置を計算（下唇が移動した後の位置）
+  const mouthCenterCanvasX = (mouthPathBounds.minX + mouthPathBounds.maxX) / 2;
+  const mouthCenterCanvasY = (mouthPathBounds.minY + mouthPathBounds.maxY) / 2;
+  
+  // Canvas座標系から元の画像座標系に変換
+  const mouthCenterImageX = (mouthCenterCanvasX - drawX) / imageScaleX;
+  const mouthCenterImageY = (mouthCenterCanvasY - drawY) / imageScaleY;
+  
+  // 元の画像から色をサンプリング（下唇が移動した後の位置 = 元の画像では下唇の下側）
+  const sampleSize = 30;
+  const sampleX = Math.max(0, Math.min(imageWidth - sampleSize, Math.floor(mouthCenterImageX - sampleSize / 2)));
+  const sampleY = Math.max(0, Math.min(imageHeight - sampleSize, Math.floor(mouthCenterImageY - sampleSize / 2)));
+  
+  // 一時的なCanvasで元の画像から色を取得
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = sampleSize;
+  tempCanvas.height = sampleSize;
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCtx.drawImage(offscreenCanvas, sampleX, sampleY, sampleSize, sampleSize, 0, 0, sampleSize, sampleSize);
+  
+  const imageData = tempCtx.getImageData(0, 0, sampleSize, sampleSize);
+  const data = imageData.data;
+  let totalR = 0, totalG = 0, totalB = 0;
+  let pixelCount = 0;
+  
+  // 中心付近のピクセルの色をサンプリング
+  for (let y = 0; y < sampleSize; y++) {
+    for (let x = 0; x < sampleSize; x++) {
+      const distFromCenter = Math.sqrt((x - sampleSize / 2) ** 2 + (y - sampleSize / 2) ** 2);
+      const maxDist = sampleSize / 2;
+      
+      if (distFromCenter < maxDist) {
+        const idx = (y * sampleSize + x) * 4;
+        totalR += data[idx];
+        totalG += data[idx + 1];
+        totalB += data[idx + 2];
+        pixelCount++;
+      }
+    }
+  }
+  
+  // 口の中の色を取得
+  let mouthColor = { r: 0, g: 0, b: 0 };
+  if (pixelCount > 0) {
+    mouthColor = {
+      r: Math.floor(totalR / pixelCount),
+      g: Math.floor(totalG / pixelCount),
+      b: Math.floor(totalB / pixelCount)
+    };
+  }
+  
   // 1. 下唇の元の位置を削除
   const lowerLipPathOriginal = buildLowerLipPath(adjustedLandmarks);
   canvasCtx.save();
@@ -437,8 +528,7 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
   canvasCtx.fill(lowerLipPathOriginal);
   canvasCtx.restore();
 
-  // 2. 口の中を黒で塗りつぶす（グラデーション付き）
-  const mouthOpeningPath = buildMouthOpeningPath(adjustedLandmarks, offsetVector);
+  // 2. 口の中を取得した色で塗りつぶす（少し暗くして自然に）
   canvasCtx.save();
   const gradient = canvasCtx.createLinearGradient(
     mouthLeft.x * canvasElement.width,
@@ -446,9 +536,28 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
     mouthLeft.x * canvasElement.width,
     (mouthLower.y + offsetVector.y / canvasElement.height) * canvasElement.height
   );
-  gradient.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
-  gradient.addColorStop(0.5, 'rgba(15, 8, 12, 0.98)');
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+  
+  // 取得した色を少し暗くしてグラデーションを作成
+  const darkenFactor = 0.6; // 60%の明るさに
+  const topColor = {
+    r: Math.floor(mouthColor.r * darkenFactor),
+    g: Math.floor(mouthColor.g * darkenFactor),
+    b: Math.floor(mouthColor.b * darkenFactor)
+  };
+  const middleColor = {
+    r: Math.floor(mouthColor.r * darkenFactor * 0.8),
+    g: Math.floor(mouthColor.g * darkenFactor * 0.8),
+    b: Math.floor(mouthColor.b * darkenFactor * 0.8)
+  };
+  const bottomColor = {
+    r: Math.floor(mouthColor.r * darkenFactor * 0.6),
+    g: Math.floor(mouthColor.g * darkenFactor * 0.6),
+    b: Math.floor(mouthColor.b * darkenFactor * 0.6)
+  };
+  
+  gradient.addColorStop(0, `rgba(${topColor.r}, ${topColor.g}, ${topColor.b}, 0.95)`);
+  gradient.addColorStop(0.5, `rgba(${middleColor.r}, ${middleColor.g}, ${middleColor.b}, 0.98)`);
+  gradient.addColorStop(1, `rgba(${bottomColor.r}, ${bottomColor.g}, ${bottomColor.b}, 1)`);
   canvasCtx.fillStyle = gradient;
   canvasCtx.fill(mouthOpeningPath);
   canvasCtx.restore();
@@ -510,9 +619,7 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
     maxLipY = Math.max(maxLipY, y);
   });
 
-  // 元の画像座標系での下唇の位置を計算
-  const imageScaleX = drawWidth / imageWidth;
-  const imageScaleY = drawHeight / imageHeight;
+  // 元の画像座標系での下唇の位置を計算（imageScaleX, imageScaleYは既に定義済み）
   const lipPadding = 5;
   const lipSx = Math.max(0, (minLipX - drawX) / imageScaleX - lipPadding);
   const lipSy = Math.max(0, (minLipY - drawY) / imageScaleY - lipPadding);
@@ -555,16 +662,18 @@ faceMesh.onResults((results) => {
   const stageElement = document.querySelector('.stage');
   if (!stageElement) return;
 
+  // カメラ映像のアスペクト比を取得
+  const imageAspectRatio = results.image.width / results.image.height;
+  
   // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
   if (!stageSizeInitialized) {
     // 親要素（.app）の幅を基準にする
     const appElement = document.querySelector('.app');
     const appWidth = appElement ? appElement.clientWidth : window.innerWidth;
-    const targetAspectRatio = 9 / 16;
     
-    // .stageのサイズを計算（親要素の幅に合わせる）
+    // カメラ映像の横幅に合わせて.stageのサイズを計算
     const stageWidth = Math.min(appWidth - 32, window.innerWidth - 32); // パディングを考慮
-    const stageHeight = stageWidth / targetAspectRatio;
+    const stageHeight = stageWidth / imageAspectRatio;
     
     // .stageのサイズを設定（初回のみ）
     stageElement.style.width = `${stageWidth}px`;
@@ -576,19 +685,9 @@ faceMesh.onResults((results) => {
   const displayWidth = stageElement.clientWidth;
   const displayHeight = stageElement.clientHeight;
   
-  // 縦長のアスペクト比（9:16）を維持
-  const targetAspectRatio = 9 / 16;
-  let canvasWidth, canvasHeight;
-  
-  if (displayHeight / displayWidth > targetAspectRatio) {
-    // 高さが長い場合、幅に合わせる
-    canvasWidth = displayWidth;
-    canvasHeight = displayWidth / targetAspectRatio;
-  } else {
-    // 幅が広い場合、高さに合わせる
-    canvasHeight = displayHeight;
-    canvasWidth = displayHeight * targetAspectRatio;
-  }
+  // Canvasのサイズを.stageのサイズに合わせる
+  const canvasWidth = displayWidth;
+  const canvasHeight = displayHeight;
 
   // Canvasのサイズを設定（表示サイズと同じ）
   canvasElement.width = canvasWidth;
@@ -602,23 +701,11 @@ faceMesh.onResults((results) => {
   
   canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  // カメラ映像をアスペクト比を保持しながらCanvasに描画
-  const imageAspectRatio = results.image.width / results.image.height;
-  let drawWidth, drawHeight, drawX, drawY;
-  
-  if (imageAspectRatio > targetAspectRatio) {
-    // カメラ映像が横長の場合、高さに合わせる
-    drawHeight = canvasHeight;
-    drawWidth = drawHeight * imageAspectRatio;
-    drawX = (canvasWidth - drawWidth) / 2;
-    drawY = 0;
-  } else {
-    // カメラ映像が縦長の場合、幅に合わせる
-    drawWidth = canvasWidth;
-    drawHeight = drawWidth / imageAspectRatio;
-    drawX = 0;
-    drawY = (canvasHeight - drawHeight) / 2;
-  }
+  // カメラ映像を横幅に合わせて描画（アスペクト比を保持）
+  const drawWidth = canvasWidth;
+  const drawHeight = drawWidth / imageAspectRatio;
+  const drawX = 0;
+  const drawY = (canvasHeight - drawHeight) / 2;
   
   offscreenCtx.drawImage(results.image, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
 
