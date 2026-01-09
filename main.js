@@ -707,16 +707,29 @@ faceMesh.onResults((results) => {
   // カメラは720x1280（縦型）を想定しているが、実際の映像サイズを使用
   const portraitAspectRatio = isPortrait ? imageAspectRatio : (results.image.height / results.image.width);
   
+  // フルスクリーン状態をチェック
+  const isFullscreen = !!getFullscreenElement() || 
+                       stageElement.classList.contains('fullscreen-mode');
+  
   // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
-  if (!stageSizeInitialized) {
-    // 親要素（.app）のサイズを取得
-    const appElement = document.querySelector('.app');
-    const appWidth = appElement ? appElement.clientWidth : window.innerWidth;
-    const appHeight = appElement ? appElement.clientHeight : window.innerHeight;
+  // フルスクリーン時は常に再計算
+  if (!stageSizeInitialized || isFullscreen) {
+    let availableWidth, availableHeight;
     
-    // 画面の利用可能なサイズを計算（パディングを考慮）
-    const availableWidth = Math.min(appWidth - 32, window.innerWidth - 32);
-    const availableHeight = Math.min(appHeight - 32, window.innerHeight - 32);
+    if (isFullscreen) {
+      // フルスクリーン時は画面全体を使用
+      availableWidth = window.innerWidth;
+      availableHeight = window.innerHeight;
+    } else {
+      // 通常時は親要素のサイズを取得
+      const appElement = document.querySelector('.app');
+      const appWidth = appElement ? appElement.clientWidth : window.innerWidth;
+      const appHeight = appElement ? appElement.clientHeight : window.innerHeight;
+      
+      // 画面の利用可能なサイズを計算（パディングを考慮）
+      availableWidth = Math.min(appWidth - 32, window.innerWidth - 32);
+      availableHeight = Math.min(appHeight - 32, window.innerHeight - 32);
+    }
     
     // カメラ映像の実際のアスペクト比を使用
     // 縦型の場合: height/width (1より大きい値)
@@ -738,7 +751,7 @@ faceMesh.onResults((results) => {
         stageHeight = stageWidth * cameraAspectRatioForStage;
       } else {
         // 画面がより横長の場合、高さに合わせる（アスペクト比を維持）
-        stageHeight = Math.min(availableHeight, availableWidth * cameraAspectRatioForStage);
+        stageHeight = availableHeight;
         stageWidth = stageHeight / cameraAspectRatioForStage;
       }
     } else {
@@ -756,10 +769,14 @@ faceMesh.onResults((results) => {
       }
     }
     
-    // .stageのサイズを設定（初回のみ）
+    // .stageのサイズを設定
     stageElement.style.width = `${stageWidth}px`;
     stageElement.style.height = `${stageHeight}px`;
-    stageSizeInitialized = true;
+    
+    // フルスクリーン時は再計算を許可しない（通常時のみ初期化フラグを設定）
+    if (!isFullscreen) {
+      stageSizeInitialized = true;
+    }
   }
 
   // .stageのサイズを取得（固定されたサイズ）
@@ -946,6 +963,22 @@ if (cameraPermissionModal) {
 // フルスクリーン機能
 const fullscreenBtn = document.querySelector('.fullscreen-btn');
 
+// iOSを検出
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+// モバイルデバイスを検出
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                 (window.innerWidth <= 768);
+
+// フルスクリーンAPIが利用可能かチェック
+const isFullscreenAPIAvailable = () => {
+  return !!(document.fullscreenEnabled ||
+            document.webkitFullscreenEnabled ||
+            document.mozFullScreenEnabled ||
+            document.msFullscreenEnabled);
+};
+
 // フルスクリーンAPIのベンダープレフィックス対応
 const getFullscreenElement = () => {
   return document.fullscreenElement ||
@@ -955,7 +988,72 @@ const getFullscreenElement = () => {
          null;
 };
 
+// CSSベースのフルスクリーン実装（iOS/モバイル用）
+const enterFullscreenCSS = () => {
+  // ステージを全画面表示
+  stageElement.classList.add('fullscreen-mode');
+  stageElement.style.position = 'fixed';
+  stageElement.style.top = '50%';
+  stageElement.style.left = '50%';
+  stageElement.style.transform = 'translate(-50%, -50%)';
+  stageElement.style.zIndex = '9999';
+  stageElement.style.margin = '0';
+  stageElement.style.borderRadius = '0';
+  stageElement.style.maxWidth = '100vw';
+  stageElement.style.maxHeight = '100vh';
+  // widthとheightはJavaScriptで計算された値を維持（上書きしない）
+  
+  // bodyのスクロールを無効化
+  document.body.style.overflow = 'hidden';
+  
+  // 画面の向きをロック（可能な場合）
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('portrait').catch(() => {
+      // ロックに失敗しても続行
+    });
+  }
+  
+  // フルスクリーン状態が変わったので、サイズを再計算
+  stageSizeInitialized = false;
+  
+  return Promise.resolve();
+};
+
+const exitFullscreenCSS = () => {
+  // ステージを元に戻す
+  stageElement.classList.remove('fullscreen-mode');
+  stageElement.style.position = '';
+  stageElement.style.top = '';
+  stageElement.style.left = '';
+  stageElement.style.transform = '';
+  stageElement.style.zIndex = '';
+  stageElement.style.margin = '';
+  stageElement.style.borderRadius = '';
+  stageElement.style.maxWidth = '';
+  stageElement.style.maxHeight = '';
+  // widthとheightはJavaScriptで計算された値を維持（上書きしない）
+  
+  // bodyのスクロールを有効化
+  document.body.style.overflow = '';
+  
+  // 画面の向きのロックを解除
+  if (screen.orientation && screen.orientation.unlock) {
+    screen.orientation.unlock();
+  }
+  
+  // 通常モードに戻ったので、サイズを再計算
+  stageSizeInitialized = false;
+  
+  return Promise.resolve();
+};
+
 const requestFullscreen = (element) => {
+  // iOSまたはモバイルでフルスクリーンAPIが利用できない場合はCSS実装を使用
+  if (isIOS || (isMobile && !isFullscreenAPIAvailable())) {
+    return enterFullscreenCSS();
+  }
+  
+  // フルスクリーンAPIを試行
   if (element.requestFullscreen) {
     return element.requestFullscreen();
   } else if (element.webkitRequestFullscreen) {
@@ -965,32 +1063,18 @@ const requestFullscreen = (element) => {
   } else if (element.msRequestFullscreen) {
     return element.msRequestFullscreen();
   } else {
-    // モバイルデバイスでの代替実装
-    // 画面の向きをロックしてフルスクリーン風にする
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock('portrait').catch(() => {
-        // ロックに失敗しても続行
-      });
-    }
-    // ビューポートを調整
-    const viewport = document.querySelector('meta[name="viewport"]');
-    if (viewport) {
-      viewport.setAttribute('content', 'width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
-    }
-    // ステージを全画面表示
-    stageElement.style.position = 'fixed';
-    stageElement.style.top = '0';
-    stageElement.style.left = '0';
-    stageElement.style.width = '100vw';
-    stageElement.style.height = '100vh';
-    stageElement.style.zIndex = '9999';
-    stageElement.style.margin = '0';
-    stageElement.style.borderRadius = '0';
-    return Promise.resolve();
+    // APIが利用できない場合はCSS実装にフォールバック
+    return enterFullscreenCSS();
   }
 };
 
 const exitFullscreen = () => {
+  // CSS実装のフルスクリーン状態をチェック
+  if (stageElement.classList.contains('fullscreen-mode')) {
+    return exitFullscreenCSS();
+  }
+  
+  // フルスクリーンAPIを試行
   if (document.exitFullscreen) {
     return document.exitFullscreen();
   } else if (document.webkitExitFullscreen) {
@@ -1000,31 +1084,20 @@ const exitFullscreen = () => {
   } else if (document.msExitFullscreen) {
     return document.msExitFullscreen();
   } else {
-    // モバイルデバイスでの代替実装を解除
-    if (screen.orientation && screen.orientation.unlock) {
-      screen.orientation.unlock();
-    }
-    // ステージを元に戻す
-    stageElement.style.position = '';
-    stageElement.style.top = '';
-    stageElement.style.left = '';
-    stageElement.style.width = '';
-    stageElement.style.height = '';
-    stageElement.style.zIndex = '';
-    stageElement.style.margin = '';
-    stageElement.style.borderRadius = '';
-    return Promise.resolve();
+    // APIが利用できない場合はCSS実装を解除
+    return exitFullscreenCSS();
   }
 };
 
 const toggleFullscreen = async () => {
   const isFullscreen = !!getFullscreenElement() || 
-                       (stageElement.style.position === 'fixed');
+                       stageElement.classList.contains('fullscreen-mode');
   
   if (!isFullscreen) {
     // フルスクリーンに入る
     try {
       await requestFullscreen(stageElement);
+      updateFullscreenButton();
     } catch (error) {
       console.error('フルスクリーンに失敗しました:', error);
       updateStatus("フルスクリーンに失敗しました。");
@@ -1033,6 +1106,7 @@ const toggleFullscreen = async () => {
     // フルスクリーンから出る
     try {
       await exitFullscreen();
+      updateFullscreenButton();
     } catch (error) {
       console.error('フルスクリーン解除に失敗しました:', error);
       updateStatus("フルスクリーン解除に失敗しました。");
@@ -1046,7 +1120,7 @@ fullscreenBtn.addEventListener('click', toggleFullscreen);
 // フルスクリーン状態の変更を監視（ベンダープレフィックス対応）
 const updateFullscreenButton = () => {
   const isFullscreen = !!getFullscreenElement() || 
-                       (stageElement.style.position === 'fixed');
+                       stageElement.classList.contains('fullscreen-mode');
   
   if (isFullscreen) {
     fullscreenBtn.innerHTML = `
