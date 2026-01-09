@@ -697,19 +697,28 @@ faceMesh.onResults((results) => {
 
   if (!stageElement) return;
 
-  // カメラ映像のアスペクト比を取得（実際のカメラ映像のサイズを使用）
+  // フルスクリーン状態をチェック
+  const isFullscreen = !!getFullscreenElement() || 
+                       stageElement.classList.contains('fullscreen-mode');
+  
+  // iOSのSafariでは、カメラ映像が横長で取得される場合でも、縦長として扱う
+  // カメラ設定で720x1280（縦長）を指定しているため
   const imageAspectRatio = results.image.width / results.image.height;
   
-  // カメラ映像が縦型か横型かを判定
-  const isPortrait = results.image.height > results.image.width;
+  // iOSのSafariでフルスクリーン時は、常に縦長として扱う
+  // 通常時は実際の映像サイズで判定
+  let isPortrait;
+  if (isIOS && isFullscreen) {
+    // iOSのSafariでフルスクリーン時は、常に縦長として扱う
+    isPortrait = true;
+  } else {
+    // 通常時は実際の映像サイズで判定
+    isPortrait = results.image.height > results.image.width;
+  }
   
   // 縦型の場合のアスペクト比を計算
   // カメラは720x1280（縦型）を想定しているが、実際の映像サイズを使用
   const portraitAspectRatio = isPortrait ? imageAspectRatio : (results.image.height / results.image.width);
-  
-  // フルスクリーン状態をチェック
-  const isFullscreen = !!getFullscreenElement() || 
-                       stageElement.classList.contains('fullscreen-mode');
   
   // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
   // フルスクリーン時は常に再計算
@@ -718,8 +727,19 @@ faceMesh.onResults((results) => {
     
     if (isFullscreen) {
       // フルスクリーン時は画面全体を使用
+      // iOSのSafariでは、画面の向きを考慮
       availableWidth = window.innerWidth;
       availableHeight = window.innerHeight;
+      
+      // iOSのSafariでフルスクリーン時は、縦長として扱う
+      // 画面が横長の場合でも、縦長のカメラ映像を表示するため、画面の高さを優先
+      if (isIOS && availableWidth > availableHeight) {
+        // 画面が横長の場合、縦長のカメラ映像を表示するため、幅と高さを入れ替える
+        // ただし、実際の画面サイズは維持
+        const temp = availableWidth;
+        availableWidth = availableHeight;
+        availableHeight = temp;
+      }
     } else {
       // 通常時は親要素のサイズを取得
       const appElement = document.querySelector('.app');
@@ -731,7 +751,7 @@ faceMesh.onResults((results) => {
       availableHeight = Math.min(appHeight - 32, window.innerHeight - 32);
     }
     
-    // カメラ映像の実際のアスペクト比を使用
+    // カメラ映像のアスペクト比を使用
     // 縦型の場合: height/width (1より大きい値)
     // 横型の場合: width/height (1より小さい値)
     const cameraAspectRatioForStage = isPortrait
@@ -803,7 +823,8 @@ faceMesh.onResults((results) => {
   // Canvasのサイズに合わせて、カメラ映像のアスペクト比を維持しながらスケール
   let drawWidth, drawHeight, drawX, drawY;
   
-  // カメラ映像の実際のアスペクト比を使用
+  // カメラ映像のアスペクト比を使用
+  // iOSのSafariでフルスクリーン時は、縦長として扱う
   // 縦型の場合: height/width (1より大きい値)
   // 横型の場合: width/height (1より小さい値)
   const cameraAspectRatio = isPortrait 
