@@ -23,9 +23,6 @@ const LIP_OUTLINE = [
 ];
 
 const LOWER_LIP = [17, 314, 405, 321, 375, 291];
-const INNER_MOUTH = [
-  78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 191,
-];
 
 const updateStatus = (message) => {
   statusElement.textContent = message;
@@ -63,21 +60,6 @@ const buildLowerLipPath = (landmarks, offsetY) => {
   return path;
 };
 
-const buildInnerMouthPath = (landmarks, offsetY) => {
-  const path = new Path2D();
-  const first = landmarks[INNER_MOUTH[0]];
-  path.moveTo(first.x * canvasElement.width, first.y * canvasElement.height);
-  const upperY = landmarks[LANDMARKS.mouthUpper].y * canvasElement.height;
-  INNER_MOUTH.slice(1).forEach((index) => {
-    const point = landmarks[index];
-    const y = point.y * canvasElement.height;
-    const adjustedY = y > upperY ? y + offsetY : y;
-    path.lineTo(point.x * canvasElement.width, adjustedY);
-  });
-  path.closePath();
-  return path;
-};
-
 const drawMouthWarp = (landmarks, openAmount) => {
   const mouthLeft = landmarks[LANDMARKS.mouthLeft];
   const mouthRight = landmarks[LANDMARKS.mouthRight];
@@ -102,12 +84,11 @@ const drawMouthWarp = (landmarks, openAmount) => {
   const jawOffset = sh * 0.45 * openAmount;
   const lipPath = buildLipPath(landmarks, jawOffset);
   const lowerLipPath = buildLowerLipPath(landmarks, jawOffset);
-  const innerMouthPath = buildInnerMouthPath(landmarks, jawOffset);
 
   canvasCtx.save();
   canvasCtx.clip(lipPath);
-  canvasCtx.fillStyle = "rgba(10, 6, 8, 0.95)";
-  canvasCtx.fill(innerMouthPath);
+  canvasCtx.fillStyle = "rgba(8, 6, 10, 0.95)";
+  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
 
   canvasCtx.save();
   canvasCtx.clip(lowerLipPath);
