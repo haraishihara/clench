@@ -667,13 +667,28 @@ faceMesh.onResults((results) => {
   
   // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
   if (!stageSizeInitialized) {
-    // 親要素（.app）の幅を基準にする
+    // 親要素（.app）のサイズを取得
     const appElement = document.querySelector('.app');
     const appWidth = appElement ? appElement.clientWidth : window.innerWidth;
+    const appHeight = appElement ? appElement.clientHeight : window.innerHeight;
     
-    // カメラ映像の横幅に合わせて.stageのサイズを計算
-    const stageWidth = Math.min(appWidth - 32, window.innerWidth - 32); // パディングを考慮
-    const stageHeight = stageWidth / imageAspectRatio;
+    // 画面の利用可能なサイズを計算（パディングを考慮）
+    const availableWidth = Math.min(appWidth - 32, window.innerWidth - 32);
+    const availableHeight = Math.min(appHeight - 32, window.innerHeight - 32);
+    
+    // カメラ映像のアスペクト比と画面サイズを考慮して.stageのサイズを計算
+    // 画面の高さと幅の両方を考慮して、はみ出さないサイズを計算
+    let stageWidth, stageHeight;
+    
+    if (availableHeight / availableWidth > imageAspectRatio) {
+      // 画面が縦長の場合、幅に合わせる
+      stageWidth = availableWidth;
+      stageHeight = stageWidth / imageAspectRatio;
+    } else {
+      // 画面が横長の場合、高さに合わせる
+      stageHeight = availableHeight;
+      stageWidth = stageHeight * imageAspectRatio;
+    }
     
     // .stageのサイズを設定（初回のみ）
     stageElement.style.width = `${stageWidth}px`;
@@ -701,11 +716,23 @@ faceMesh.onResults((results) => {
   
   canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  // カメラ映像を横幅に合わせて描画（アスペクト比を保持）
-  const drawWidth = canvasWidth;
-  const drawHeight = drawWidth / imageAspectRatio;
-  const drawX = 0;
-  const drawY = (canvasHeight - drawHeight) / 2;
+  // カメラ映像をアスペクト比を保持しながら適切にスケールして描画
+  // 画面の高さと幅の両方を考慮して、はみ出さないサイズを計算
+  let drawWidth, drawHeight, drawX, drawY;
+  
+  if (canvasHeight / canvasWidth > imageAspectRatio) {
+    // Canvasが縦長の場合、幅に合わせる
+    drawWidth = canvasWidth;
+    drawHeight = drawWidth / imageAspectRatio;
+    drawX = 0;
+    drawY = (canvasHeight - drawHeight) / 2;
+  } else {
+    // Canvasが横長の場合、高さに合わせる
+    drawHeight = canvasHeight;
+    drawWidth = drawHeight * imageAspectRatio;
+    drawX = (canvasWidth - drawWidth) / 2;
+    drawY = 0;
+  }
   
   offscreenCtx.drawImage(results.image, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
 
