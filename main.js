@@ -845,7 +845,8 @@ faceMesh.onResults((results) => {
   canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
   // カメラ映像を縦型で表示（アスペクト比を保持）
-  // Canvasのサイズに合わせて、カメラ映像のアスペクト比を維持しながらスケール
+  // フルスクリーン時は画面全体を覆うように表示（object-fit: coverのような動作）
+  // 通常時はアスペクト比を維持しながら中央に配置
   let drawWidth, drawHeight, drawX, drawY;
   
   // カメラ映像のアスペクト比を使用
@@ -856,38 +857,79 @@ faceMesh.onResults((results) => {
   // Canvasのアスペクト比（高さ/幅）
   const canvasAspectRatio = canvasHeight / canvasWidth;
   
-  if (isPortrait) {
-    // 縦型カメラ映像の場合
-    if (canvasAspectRatio > cameraAspectRatio) {
-      // Canvasがより縦長の場合、幅に合わせる（アスペクト比を維持）
-      drawWidth = canvasWidth;
-      drawHeight = drawWidth * cameraAspectRatio;
-      drawX = 0;
-      drawY = (canvasHeight - drawHeight) / 2;
+  if (isFullscreen) {
+    // フルスクリーン時：画面全体を覆うように表示（object-fit: cover）
+    // アスペクト比を維持しながら、はみ出た部分をトリミング
+    if (isPortrait) {
+      // 縦型カメラ映像の場合
+      // 画面全体を覆うように、大きい方のサイズに合わせてスケール
+      if (canvasAspectRatio > cameraAspectRatio) {
+        // Canvasがより縦長の場合、高さに合わせてスケール（幅がはみ出す）
+        drawHeight = canvasHeight;
+        drawWidth = drawHeight / cameraAspectRatio;
+        drawX = (canvasWidth - drawWidth) / 2;
+        drawY = 0;
+      } else {
+        // Canvasがより横長の場合、幅に合わせてスケール（高さがはみ出す）
+        drawWidth = canvasWidth;
+        drawHeight = drawWidth * cameraAspectRatio;
+        drawX = 0;
+        drawY = (canvasHeight - drawHeight) / 2;
+      }
     } else {
-      // Canvasがより横長の場合、高さに合わせる（アスペクト比を維持）
-      drawHeight = canvasHeight;
-      drawWidth = drawHeight / cameraAspectRatio;
-      drawX = (canvasWidth - drawWidth) / 2;
-      drawY = 0;
+      // 横型カメラ映像の場合
+      const cameraAspectRatioWidth = cameraAspectRatio; // width/height
+      const canvasAspectRatioWidth = canvasWidth / canvasHeight; // width/height
+      
+      if (canvasAspectRatioWidth > cameraAspectRatioWidth) {
+        // Canvasがより横長の場合、幅に合わせてスケール（高さがはみ出す）
+        drawWidth = canvasWidth;
+        drawHeight = drawWidth / cameraAspectRatioWidth;
+        drawX = 0;
+        drawY = (canvasHeight - drawHeight) / 2;
+      } else {
+        // Canvasがより縦長の場合、高さに合わせてスケール（幅がはみ出す）
+        drawHeight = canvasHeight;
+        drawWidth = drawHeight * cameraAspectRatioWidth;
+        drawX = (canvasWidth - drawWidth) / 2;
+        drawY = 0;
+      }
     }
   } else {
-    // 横型カメラ映像の場合
-    const cameraAspectRatioWidth = cameraAspectRatio; // width/height
-    const canvasAspectRatioWidth = canvasWidth / canvasHeight; // width/height
-    
-    if (canvasAspectRatioWidth > cameraAspectRatioWidth) {
-      // Canvasがより横長の場合、高さに合わせる（アスペクト比を維持）
-      drawHeight = canvasHeight;
-      drawWidth = drawHeight * cameraAspectRatioWidth;
-      drawX = (canvasWidth - drawWidth) / 2;
-      drawY = 0;
+    // 通常時：アスペクト比を維持しながら中央に配置（object-fit: containのような動作）
+    if (isPortrait) {
+      // 縦型カメラ映像の場合
+      if (canvasAspectRatio > cameraAspectRatio) {
+        // Canvasがより縦長の場合、幅に合わせる（アスペクト比を維持）
+        drawWidth = canvasWidth;
+        drawHeight = drawWidth * cameraAspectRatio;
+        drawX = 0;
+        drawY = (canvasHeight - drawHeight) / 2;
+      } else {
+        // Canvasがより横長の場合、高さに合わせる（アスペクト比を維持）
+        drawHeight = canvasHeight;
+        drawWidth = drawHeight / cameraAspectRatio;
+        drawX = (canvasWidth - drawWidth) / 2;
+        drawY = 0;
+      }
     } else {
-      // Canvasがより縦長の場合、幅に合わせる（アスペクト比を維持）
-      drawWidth = canvasWidth;
-      drawHeight = drawWidth / cameraAspectRatioWidth;
-      drawX = 0;
-      drawY = (canvasHeight - drawHeight) / 2;
+      // 横型カメラ映像の場合
+      const cameraAspectRatioWidth = cameraAspectRatio; // width/height
+      const canvasAspectRatioWidth = canvasWidth / canvasHeight; // width/height
+      
+      if (canvasAspectRatioWidth > cameraAspectRatioWidth) {
+        // Canvasがより横長の場合、高さに合わせる（アスペクト比を維持）
+        drawHeight = canvasHeight;
+        drawWidth = drawHeight * cameraAspectRatioWidth;
+        drawX = (canvasWidth - drawWidth) / 2;
+        drawY = 0;
+      } else {
+        // Canvasがより縦長の場合、幅に合わせる（アスペクト比を維持）
+        drawWidth = canvasWidth;
+        drawHeight = drawWidth / cameraAspectRatioWidth;
+        drawX = 0;
+        drawY = (canvasHeight - drawHeight) / 2;
+      }
     }
   }
   
