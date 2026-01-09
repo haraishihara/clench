@@ -26,13 +26,16 @@ const updateStatus = (message) => {
   statusElement.textContent = message;
 };
 
-const buildLipPath = (landmarks) => {
+const buildLipPath = (landmarks, offsetY) => {
   const path = new Path2D();
   const first = landmarks[LIP_OUTLINE[0]];
   path.moveTo(first.x * canvasElement.width, first.y * canvasElement.height);
+  const upperY = landmarks[LANDMARKS.mouthUpper].y * canvasElement.height;
   LIP_OUTLINE.slice(1).forEach((index) => {
     const point = landmarks[index];
-    path.lineTo(point.x * canvasElement.width, point.y * canvasElement.height);
+    const y = point.y * canvasElement.height;
+    const adjustedY = y > upperY ? y + offsetY : y;
+    path.lineTo(point.x * canvasElement.width, adjustedY);
   });
   path.closePath();
   return path;
@@ -61,9 +64,10 @@ const drawMouthWarp = (landmarks, scale) => {
 
   const centerY = ((mouthUpper.y + mouthLower.y) / 2) * canvasElement.height;
   const targetHeight = sh * scale;
-  const dy = centerY - targetHeight / 2;
+  const jawOffset = sh * 0.35 * (scale - 1);
+  const dy = centerY - targetHeight / 2 + jawOffset;
 
-  const lipPath = buildLipPath(landmarks);
+  const lipPath = buildLipPath(landmarks, jawOffset);
   canvasCtx.save();
   canvasCtx.clip(lipPath);
   canvasCtx.drawImage(
