@@ -1,0 +1,119 @@
+const videoElement = document.querySelector(".input-video");
+const canvasElement = document.querySelector(".output-canvas");
+const statusElement = document.querySelector(".status");
+const mouthScaleInput = document.getElementById("mouthScale");
+
+const canvasCtx = canvasElement.getContext("2d");
+const offscreenCanvas = document.createElement("canvas");
+const offscreenCtx = offscreenCanvas.getContext("2d");
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const PERIOD_MS = 3000;
+
+const LANDMARKS = {
+  mouthLeft: 61,
+  mouthRight: 291,
+  mouthUpper: 13,
+  mouthLower: 14,
+};
+
+const updateStatus = (message) => {
+  statusElement.textContent = message;
+};
+
+const drawMouthWarp = (landmarks, scale) => {
+  const mouthLeft = landmarks[LANDMARKS.mouthLeft];
+  const mouthRight = landmarks[LANDMARKS.mouthRight];
+  const mouthUpper = landmarks[LANDMARKS.mouthUpper];
+  const mouthLower = landmarks[LANDMARKS.mouthLower];
+
+  const paddingX = 0.04;
+  const paddingY = 0.08;
+
+  const minX = Math.min(mouthLeft.x, mouthRight.x) - paddingX;
+  const maxX = Math.max(mouthLeft.x, mouthRight.x) + paddingX;
+  const minY = Math.min(mouthUpper.y, mouthLower.y) - paddingY;
+  const maxY = Math.max(mouthUpper.y, mouthLower.y) + paddingY;
+
+  const sx = clamp(minX, 0, 1) * canvasElement.width;
+  const sy = clamp(minY, 0, 1) * canvasElement.height;
+  const sw = (clamp(maxX, 0, 1) - clamp(minX, 0, 1)) * canvasElement.width;
+  const sh = (clamp(maxY, 0, 1) - clamp(minY, 0, 1)) * canvasElement.height;
+
+  if (sw <= 0 || sh <= 0) return;
+
+  const centerY = ((mouthUpper.y + mouthLower.y) / 2) * canvasElement.height;
+  const targetHeight = sh * scale;
+  const dy = centerY - targetHeight / 2;
+
+  canvasCtx.drawImage(
+    offscreenCanvas,
+    sx,
+    sy,
+    sw,
+    sh,
+    sx,
+    dy,
+    sw,
+    targetHeight
+  );
+};
+
+const faceMesh = new FaceMesh({
+  locateFile: (file) =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+});
+
+faceMesh.setOptions({
+  maxNumFaces: 1,
+  refineLandmarks: true,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6,
+});
+
+faceMesh.onResults((results) => {
+  if (!results.image) return;
+
+  canvasElement.width = results.image.width;
+  canvasElement.height = results.image.height;
+  offscreenCanvas.width = results.image.width;
+  offscreenCanvas.height = results.image.height;
+
+  offscreenCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(offscreenCanvas, 0, 0, canvasElement.width, canvasElement.height);
+
+  if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+    updateStatus("顔を検出できませんでした。カメラに顔を向けてください。");
+    return;
+  }
+
+  const landmarks = results.multiFaceLandmarks[0];
+  const mouthScaleMax = Number(mouthScaleInput.value);
+
+  const elapsed = performance.now();
+  const normalized = (Math.sin((2 * Math.PI * elapsed) / PERIOD_MS) + 1) / 2;
+  const mouthScale = 1 + normalized * (mouthScaleMax - 1);
+
+  drawMouthWarp(landmarks, mouthScale);
+
+  updateStatus(`自動開閉中: 口の拡大 ${mouthScale.toFixed(2)}x`);
+});
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => {
+    await faceMesh.send({ image: videoElement });
+  },
+  width: 1280,
+  height: 720,
+});
+
+camera
+  .start()
+  .then(() => {
+    updateStatus("カメラ起動中...口の自動開閉を確認してください。");
+  })
+  .catch((error) => {
+    console.error(error);
+    updateStatus("カメラを起動できませんでした。権限を確認してください。");
+  });
