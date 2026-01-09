@@ -662,8 +662,14 @@ faceMesh.onResults((results) => {
   const stageElement = document.querySelector('.stage');
   if (!stageElement) return;
 
-  // カメラ映像のアスペクト比を取得（縦型: 9:16 = 0.5625）
+  // カメラ映像のアスペクト比を取得
   const imageAspectRatio = results.image.width / results.image.height;
+  
+  // カメラ映像が縦型か横型かを判定
+  const isPortrait = results.image.height > results.image.width;
+  
+  // 縦型の場合のアスペクト比を計算（height/width）
+  const portraitAspectRatio = isPortrait ? imageAspectRatio : (1 / imageAspectRatio);
   
   // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
   if (!stageSizeInitialized) {
@@ -676,14 +682,16 @@ faceMesh.onResults((results) => {
     const availableWidth = Math.min(appWidth - 32, window.innerWidth - 32);
     const availableHeight = Math.min(appHeight - 32, window.innerHeight - 32);
     
-    // カメラ映像は縦型（9:16）を維持して表示
-    // 画面サイズに応じてスケールするが、縦型を優先
+    // カメラ映像は縦型を想定（スマホ対応）
+    // 縦型のアスペクト比（9:16 = 0.5625）を使用
+    const targetAspectRatio = isPortrait ? portraitAspectRatio : (9 / 16);
+    
     let stageWidth, stageHeight;
     
-    // 縦型のアスペクト比で計算
-    const targetAspectRatio = 9 / 16; // 縦型を強制
+    // 画面のアスペクト比とカメラ映像のアスペクト比を比較
+    const screenAspectRatio = availableHeight / availableWidth;
     
-    if (availableHeight / availableWidth > targetAspectRatio) {
+    if (screenAspectRatio > targetAspectRatio) {
       // 画面が縦長の場合、幅に合わせる（縦型を維持）
       stageWidth = availableWidth;
       stageHeight = stageWidth / targetAspectRatio;
@@ -719,23 +727,25 @@ faceMesh.onResults((results) => {
   
   canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  // カメラ映像を縦型（9:16）で表示（アスペクト比を保持）
-  // Canvasのサイズに合わせて、縦型を維持しながらスケール
+  // カメラ映像を縦型で表示（アスペクト比を保持）
+  // Canvasのサイズに合わせて、カメラ映像のアスペクト比を維持しながらスケール
   let drawWidth, drawHeight, drawX, drawY;
   
-  // 縦型のアスペクト比を維持
-  const targetAspectRatio = 9 / 16;
+  // 縦型のアスペクト比を使用（カメラ映像が縦型の場合、既に計算済みのportraitAspectRatioを使用）
+  const targetAspectRatioForDraw = isPortrait ? portraitAspectRatio : (9 / 16);
   
-  if (canvasHeight / canvasWidth > targetAspectRatio) {
-    // Canvasが縦長の場合、幅に合わせる（縦型を維持）
+  const canvasAspectRatio = canvasHeight / canvasWidth;
+  
+  if (canvasAspectRatio > targetAspectRatioForDraw) {
+    // Canvasが縦長の場合、幅に合わせる（アスペクト比を維持）
     drawWidth = canvasWidth;
-    drawHeight = drawWidth / targetAspectRatio;
+    drawHeight = drawWidth / targetAspectRatioForDraw;
     drawX = 0;
     drawY = (canvasHeight - drawHeight) / 2;
   } else {
-    // Canvasが横長の場合でも、縦型を維持して高さに合わせる
+    // Canvasが横長の場合、高さに合わせる（アスペクト比を維持）
     drawHeight = canvasHeight;
-    drawWidth = drawHeight * targetAspectRatio;
+    drawWidth = drawHeight * targetAspectRatioForDraw;
     drawX = (canvasWidth - drawWidth) / 2;
     drawY = 0;
   }
