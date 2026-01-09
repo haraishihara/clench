@@ -22,6 +22,11 @@ const LIP_OUTLINE = [
   61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308,
 ];
 
+const LOWER_LIP = [17, 314, 405, 321, 375, 291];
+const INNER_MOUTH = [
+  78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 191,
+];
+
 const updateStatus = (message) => {
   statusElement.textContent = message;
 };
@@ -41,7 +46,39 @@ const buildLipPath = (landmarks, offsetY) => {
   return path;
 };
 
-const drawMouthWarp = (landmarks, scale) => {
+const buildLowerLipPath = (landmarks, offsetY) => {
+  const path = new Path2D();
+  const left = landmarks[LANDMARKS.mouthLeft];
+  const right = landmarks[LANDMARKS.mouthRight];
+  const upperY = landmarks[LANDMARKS.mouthUpper].y * canvasElement.height;
+  path.moveTo(left.x * canvasElement.width, left.y * canvasElement.height);
+  LOWER_LIP.forEach((index) => {
+    const point = landmarks[index];
+    const y = point.y * canvasElement.height;
+    const adjustedY = y > upperY ? y + offsetY : y;
+    path.lineTo(point.x * canvasElement.width, adjustedY);
+  });
+  path.lineTo(right.x * canvasElement.width, right.y * canvasElement.height);
+  path.closePath();
+  return path;
+};
+
+const buildInnerMouthPath = (landmarks, offsetY) => {
+  const path = new Path2D();
+  const first = landmarks[INNER_MOUTH[0]];
+  path.moveTo(first.x * canvasElement.width, first.y * canvasElement.height);
+  const upperY = landmarks[LANDMARKS.mouthUpper].y * canvasElement.height;
+  INNER_MOUTH.slice(1).forEach((index) => {
+    const point = landmarks[index];
+    const y = point.y * canvasElement.height;
+    const adjustedY = y > upperY ? y + offsetY : y;
+    path.lineTo(point.x * canvasElement.width, adjustedY);
+  });
+  path.closePath();
+  return path;
+};
+
+const drawMouthWarp = (landmarks, openAmount) => {
   const mouthLeft = landmarks[LANDMARKS.mouthLeft];
   const mouthRight = landmarks[LANDMARKS.mouthRight];
   const mouthUpper = landmarks[LANDMARKS.mouthUpper];
@@ -62,25 +99,27 @@ const drawMouthWarp = (landmarks, scale) => {
 
   if (sw <= 0 || sh <= 0) return;
 
-  const centerY = ((mouthUpper.y + mouthLower.y) / 2) * canvasElement.height;
-  const targetHeight = sh * scale;
-  const jawOffset = sh * 0.35 * (scale - 1);
-  const dy = centerY - targetHeight / 2 + jawOffset;
-
+  const jawOffset = sh * 0.45 * openAmount;
   const lipPath = buildLipPath(landmarks, jawOffset);
+  const lowerLipPath = buildLowerLipPath(landmarks, jawOffset);
+  const innerMouthPath = buildInnerMouthPath(landmarks, jawOffset);
+
   canvasCtx.save();
   canvasCtx.clip(lipPath);
+  canvasCtx.fillStyle = "rgba(10, 6, 8, 0.95)";
+  canvasCtx.fill(innerMouthPath);
+
+  canvasCtx.save();
+  canvasCtx.clip(lowerLipPath);
   canvasCtx.drawImage(
     offscreenCanvas,
-    sx,
-    sy,
-    sw,
-    sh,
-    sx,
-    dy,
-    sw,
-    targetHeight
+    0,
+    jawOffset,
+    canvasElement.width,
+    canvasElement.height
   );
+  canvasCtx.restore();
+
   canvasCtx.restore();
 };
 
@@ -119,11 +158,11 @@ faceMesh.onResults((results) => {
   const elapsed = performance.now();
   const normalized = (Math.sin((2 * Math.PI * elapsed) / PERIOD_MS) + 1) / 2;
   const forcedOpen = BASE_OPEN + normalized * (1 - BASE_OPEN);
-  const mouthScale = 1 + forcedOpen * (mouthScaleMax - 1);
+  const openAmount = forcedOpen * mouthScaleMax;
 
-  drawMouthWarp(landmarks, mouthScale);
+  drawMouthWarp(landmarks, openAmount);
 
-  updateStatus(`自動開閉中: 口の拡大 ${mouthScale.toFixed(2)}x`);
+  updateStatus(`自動開閉中: 口の開き ${openAmount.toFixed(2)}x`);
 });
 
 const camera = new Camera(videoElement, {
