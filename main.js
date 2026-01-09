@@ -794,3 +794,59 @@ camera
     console.error(error);
     updateStatus("カメラを起動できませんでした。権限を確認してください。");
   });
+
+// フルスクリーン機能
+const fullscreenBtn = document.querySelector('.fullscreen-btn');
+
+const toggleFullscreen = async () => {
+  if (!document.fullscreenElement) {
+    // フルスクリーンに入る
+    try {
+      await stageElement.requestFullscreen();
+    } catch (error) {
+      console.error('フルスクリーンに失敗しました:', error);
+    }
+  } else {
+    // フルスクリーンから出る
+    try {
+      await document.exitFullscreen();
+    } catch (error) {
+      console.error('フルスクリーン解除に失敗しました:', error);
+    }
+  }
+};
+
+// フルスクリーンボタンのクリックイベント
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+// フルスクリーン状態の変更を監視
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement) {
+    fullscreenBtn.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+      </svg>
+    `;
+    fullscreenBtn.setAttribute('aria-label', 'フルスクリーン解除');
+    fullscreenBtn.setAttribute('title', 'フルスクリーン解除');
+  } else {
+    fullscreenBtn.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3m0-18v3a2 2 0 0 1-2 2h-3m0 18h-3a2 2 0 0 1-2-2v-3"/>
+      </svg>
+    `;
+    fullscreenBtn.setAttribute('aria-label', 'フルスクリーン');
+    fullscreenBtn.setAttribute('title', 'フルスクリーン');
+  }
+  
+  // フルスクリーン状態が変わったら、サイズを再計算
+  stageSizeInitialized = false;
+});
+
+// キーボードショートカット（F11またはEsc）
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'F11') {
+    e.preventDefault();
+    toggleFullscreen();
+  }
+});
