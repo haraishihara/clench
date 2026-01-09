@@ -338,12 +338,22 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
     ? { x: 0, y: offsetDistance }
     : { x: (dx / length) * offsetDistance, y: (dy / length) * offsetDistance };
 
+  // 顎周辺のランドマーク（顎を動かすために追加）
+  // MediaPipeの顔メッシュでは、顎周辺のランドマークは以下の通り
+  const CHIN_REGION = [
+    LANDMARKS.chin, // 18: 顎の中央
+    175, 199, // 顎の左側
+    396, 369, // 顎の右側
+    172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397, 288, 361, 323, // 顎周辺の追加ポイント
+  ];
+  
   // メッシュ用のポイントを準備（口周辺のランドマークを含む）
   // 下唇のポイントのみを移動し、それ以外は固定
   const mouthRegionIndices = [
     ...LIP_OUTLINE,
     ...INNER_MOUTH,
     ...LOWER_LIP,
+    ...CHIN_REGION, // 顎周辺のランドマークを追加
     13, 14, 78, 95, 88, 178, 87, 317, 402, 318, 324, 191
   ];
   
@@ -361,7 +371,7 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
   });
 
   // 変形後の位置のポイント
-  // 下唇のポイントは移動のみ、下唇の周辺（顎など）は少し移動、それ以外は固定
+  // 下唇のポイントは移動のみ、顎は口の動きの半分で移動、それ以外は固定
   const targetPoints = sourcePoints.map(point => {
     const isLowerLip = LOWER_LIP.includes(point.index) || 
                        point.index === LANDMARKS.mouthLeft || 
@@ -377,7 +387,18 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
       };
     }
     
-    // 下唇の周辺のポイント（顎など）は少し移動して自然に見せる
+    // 顎のポイントは口の動きの半分（0.5倍）で移動
+    // ただし、より目立つように少し増やす
+    const isChin = CHIN_REGION.includes(point.index) || point.index === LANDMARKS.chin;
+    if (isChin) {
+      return {
+        x: point.x + offsetVector.x * 0.6, // 0.5から0.6に増やしてより目立つように
+        y: point.y + offsetVector.y * 0.6, // 0.5から0.6に増やしてより目立つように
+        index: point.index
+      };
+    }
+    
+    // 下唇の周辺のポイント（顎以外）は少し移動して自然に見せる
     // 下唇から距離に応じて移動量を減らす
     const lowerLipCenterY = Math.min(...sourcePoints.filter(p => 
       LOWER_LIP.includes(p.index) || p.index === LANDMARKS.mouthLower
@@ -388,7 +409,7 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
     const influenceFactor = Math.max(0, 1 - distanceFromLowerLip / maxDistance);
     
     if (influenceFactor > 0 && point.y > lowerLipCenterY) {
-      // 下唇より下にあるポイントは、距離に応じて少し移動
+      // 下唇より下にあるポイントは、距離に応じて少し移動（顎以外）
       return {
         x: point.x + offsetVector.x * influenceFactor * 0.3,
         y: point.y + offsetVector.y * influenceFactor * 0.3,
@@ -420,13 +441,22 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
   const allSourcePoints = [...sourcePoints, ...boundaryPoints];
   const allTargetPoints = [...targetPoints, ...boundaryPoints];
 
-  // 口周辺の領域を定義（メッシュ変形を適用する範囲）
+  // 口周辺と顎周辺の領域を定義（メッシュ変形を適用する範囲）
+  // 顎も含めるため、下方向のパディングを増やす
   const mouthRegionPadding = 100;
+  
+  // 顎のポイントのY座標を取得（顎が含まれているか確認）
+  const chinPoints = sourcePoints.filter(p => CHIN_REGION.includes(p.index) || p.index === LANDMARKS.chin);
+  const maxChinY = chinPoints.length > 0 ? Math.max(...chinPoints.map(p => p.y)) : 0;
+  const maxSourceY = Math.max(...sourcePoints.map(p => p.y));
+  // 顎のポイントが含まれている場合、顎の下まで含める
+  const chinPadding = maxChinY > maxSourceY ? 200 : 150;
+  
   const mouthRegion = {
     minX: Math.max(0, Math.min(...sourcePoints.map(p => p.x)) - mouthRegionPadding),
     maxX: Math.min(canvasElement.width, Math.max(...sourcePoints.map(p => p.x)) + mouthRegionPadding),
     minY: Math.max(0, Math.min(...sourcePoints.map(p => p.y)) - mouthRegionPadding),
-    maxY: Math.min(canvasElement.height, Math.max(...sourcePoints.map(p => p.y)) + mouthRegionPadding)
+    maxY: Math.min(canvasElement.height, Math.max(maxSourceY, maxChinY) + chinPadding)
   };
 
   // Delaunay三角分割を実行
@@ -667,14 +697,15 @@ faceMesh.onResults((results) => {
 
   if (!stageElement) return;
 
-  // カメラ映像のアスペクト比を取得
+  // カメラ映像のアスペクト比を取得（実際のカメラ映像のサイズを使用）
   const imageAspectRatio = results.image.width / results.image.height;
   
   // カメラ映像が縦型か横型かを判定
   const isPortrait = results.image.height > results.image.width;
   
-  // 縦型の場合のアスペクト比を計算（height/width）
-  const portraitAspectRatio = isPortrait ? imageAspectRatio : (1 / imageAspectRatio);
+  // 縦型の場合のアスペクト比を計算
+  // カメラは720x1280（縦型）を想定しているが、実際の映像サイズを使用
+  const portraitAspectRatio = isPortrait ? imageAspectRatio : (results.image.height / results.image.width);
   
   // 初回のみ.stageのサイズを設定（循環参照を防ぐ）
   if (!stageSizeInitialized) {
@@ -736,8 +767,8 @@ faceMesh.onResults((results) => {
   // Canvasのサイズに合わせて、カメラ映像のアスペクト比を維持しながらスケール
   let drawWidth, drawHeight, drawX, drawY;
   
-  // 縦型のアスペクト比を使用（カメラ映像が縦型の場合、既に計算済みのportraitAspectRatioを使用）
-  const targetAspectRatioForDraw = isPortrait ? portraitAspectRatio : (9 / 16);
+  // 縦型のアスペクト比を使用（カメラ映像の実際のアスペクト比を使用）
+  const targetAspectRatioForDraw = isPortrait ? imageAspectRatio : (results.image.height / results.image.width);
   
   const canvasAspectRatio = canvasHeight / canvasWidth;
   
@@ -807,19 +838,8 @@ const camera = new Camera(videoElement, {
 });
 
 // カメラ許可モーダルの制御
-const cameraPermissionModal = document.getElementById('cameraPermissionModal');
 const retryCameraBtn = document.getElementById('retryCameraBtn');
 const closeModalBtn = document.getElementById('closeModalBtn');
-
-const showCameraPermissionModal = () => {
-  cameraPermissionModal.setAttribute('aria-hidden', 'false');
-  document.body.style.overflow = 'hidden';
-};
-
-const hideCameraPermissionModal = () => {
-  cameraPermissionModal.setAttribute('aria-hidden', 'true');
-  document.body.style.overflow = '';
-};
 
 // カメラ許可状態をチェック
 const checkCameraPermission = async () => {
@@ -837,19 +857,10 @@ const checkCameraPermission = async () => {
 // カメラ起動
 const startCamera = async () => {
   try {
-    // まず許可状態をチェック
-    const hasPermission = await checkCameraPermission();
-    if (!hasPermission) {
-      showCameraPermissionModal();
-      return;
-    }
-
     await camera.start();
-    hideCameraPermissionModal();
     updateStatus("カメラ起動中...口の自動開閉を確認してください。");
   } catch (error) {
     console.error('カメラ起動エラー:', error);
-    showCameraPermissionModal();
     updateStatus("カメラを起動できませんでした。権限を確認してください。");
   }
 };
