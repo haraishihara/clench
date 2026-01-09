@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>目の開きで口が開くフェイスエフェクト</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <h1>自動で口が開閉するフェイスエフェクト</h1>
+        <p>
+          3秒周期で口が大きく開いて閉じるエフェクトです。
+        </p>
+      </header>
+
+      <section class="stage">
+        <video class="input-video" autoplay playsinline></video>
+        <canvas class="output-canvas"></canvas>
+        <div class="status" aria-live="polite"></div>
+      </section>
+
+      <section class="controls">
+        <label>
+          口の最大開き
+          <input type="range" min="1" max="2.8" step="0.05" value="2" id="mouthScale" />
+        </label>
+      </section>
+
+      <footer>
+        <small>※ ブラウザでカメラの使用を許可してください。</small>
+      </footer>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="main.js"></script>
+  </body>
+</html>
