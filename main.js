@@ -371,6 +371,17 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
   });
 
   // 変形後の位置のポイント
+  // Blendshape / FACS風に各ランドマークへ重み付け移動を適用
+  const jawOpenWeight = clamp(openAmount * 0.9, 0, 1.2);
+  const smileWeight = clamp(openAmount * 0.5, 0, 0.6);
+  const lipStretchWeight = clamp(openAmount * 0.35, 0, 0.5);
+  const upperLipRaiseWeight = clamp(openAmount * 0.15, 0, 0.3);
+  const lowerLipDepressWeight = clamp(openAmount * 0.25, 0, 0.5);
+  const mouthWidth = Math.abs(mouthRight.x - mouthLeft.x) * canvasElement.width;
+  const mouthCenterX = (mouthLeft.x + mouthRight.x) * 0.5 * canvasElement.width;
+  const mouthDirectionX = mouthRight.x > mouthLeft.x ? 1 : -1;
+  const horizontalStretch = mouthWidth * 0.12 * lipStretchWeight;
+
   // 下唇のポイントは移動のみ、顎は口の動きの半分で移動、それ以外は固定
   const targetPoints = sourcePoints.map(point => {
     const isLowerLip = LOWER_LIP.includes(point.index) || 
@@ -380,9 +391,12 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
     
     // 下唇のポイントは完全に移動（変形なし）
     if (isLowerLip) {
+      const isCorner = point.index === LANDMARKS.mouthLeft || point.index === LANDMARKS.mouthRight;
+      const cornerDirection = point.x < mouthCenterX ? -1 : 1;
+      const cornerStretch = isCorner ? horizontalStretch * cornerDirection * mouthDirectionX : 0;
       return {
-        x: point.x + offsetVector.x,
-        y: point.y + offsetVector.y,
+        x: point.x + offsetVector.x * jawOpenWeight + cornerStretch,
+        y: point.y + offsetVector.y * (jawOpenWeight + lowerLipDepressWeight),
         index: point.index
       };
     }
@@ -392,8 +406,30 @@ const drawMouthWarp = (landmarks, openAmount, drawX, drawY, drawWidth, drawHeigh
     const isChin = CHIN_REGION.includes(point.index) || point.index === LANDMARKS.chin;
     if (isChin) {
       return {
-        x: point.x + offsetVector.x * 0.6, // 0.5から0.6に増やしてより目立つように
-        y: point.y + offsetVector.y * 0.6, // 0.5から0.6に増やしてより目立つように
+        x: point.x + offsetVector.x * 0.65 * jawOpenWeight,
+        y: point.y + offsetVector.y * 0.65 * jawOpenWeight,
+        index: point.index
+      };
+    }
+
+    const isUpperLip = point.index === LANDMARKS.mouthUpper || INNER_MOUTH.slice(0, 6).includes(point.index);
+    if (isUpperLip) {
+      const upperLipLift = -offsetVector.y * 0.2 * upperLipRaiseWeight;
+      const upperLipShiftX = (point.x * canvasElement.width < mouthCenterX ? -1 : 1) * horizontalStretch * 0.4;
+      return {
+        x: point.x + upperLipShiftX,
+        y: point.y + upperLipLift,
+        index: point.index
+      };
+    }
+
+    const isSmileCorner = LIP_OUTLINE.includes(point.index);
+    if (isSmileCorner) {
+      const smileLift = -Math.abs(offsetVector.y) * 0.18 * smileWeight;
+      const smileStretch = (point.x * canvasElement.width < mouthCenterX ? -1 : 1) * horizontalStretch * 0.35;
+      return {
+        x: point.x + smileStretch,
+        y: point.y + smileLift,
         index: point.index
       };
     }
